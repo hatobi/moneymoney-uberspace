@@ -4,7 +4,7 @@
   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 --]]
 
-WebBanking{version = 1.02,
+WebBanking{version = 1.03,
            url = 'https://dashboard.uberspace.de/login',
            services = {'Uberspace.de'},
            description = string.format(
@@ -21,16 +21,28 @@ local usUsername
 
 function InitializeSession (protocol, bankCode, username, username2,
                             password, username3)
-  -- Login.
-  usUsername = username
+  
+  -- Check if the username contains '|'
+  local splitPos = username:find("|")
+  
+  if splitPos then
+    -- If `|` is found, split into email and username
+    usLogin = username:sub(1, splitPos - 1)
+    usUsername = username:sub(splitPos + 1)
+  else
+    -- If no `|` is found, use the entire value as both login and username
+    usLogin = username
+    usUsername = username
+  end
 
+  -- Login.
   html = HTML(usConnection:get('https://dashboard.uberspace.de/login'))
-  html:xpath('//input[@name="login"]'):attr('value', username)
+  html:xpath('//input[@name="login"]'):attr('value', usLogin)
   html:xpath('//input[@name="password"]'):attr('value', password)
 
   html = HTML(
     usConnection:request(html:xpath('//input[@name="submit"]'):click()))
-  if html:xpath('//input[@name="login"]'):length() > 0 then
+  if html:xpath('//input[@name="password"]'):length() > 0 then
     -- We are still at the login screen.
     return "Failed to log in. Please check your user credentials."
   end
@@ -66,8 +78,12 @@ function RefreshAccount (account, since)
     end
   end
 
-  html = HTML(usConnection:get(
+  -- Adjust accounting URL to include the specific username
+  local accountingUrl = 'https://dashboard.uberspace.de/dashboard/accounting?asteroid=' .. usUsername
+  html = HTML(usConnection:get(accountingUrl))
+  --[[ html = HTML(usConnection:get(
                 'https://dashboard.uberspace.de/dashboard/accounting'))
+                --]]
   tableRows = html:xpath(
     '//*[@id="transactions"]//tr[count(td)=3][position()<last()]')
   print('Found ' .. tableRows:length() .. ' rows')
